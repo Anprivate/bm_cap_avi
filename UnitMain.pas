@@ -190,7 +190,7 @@ var
   i: Integer;
   ColorSystem: string;
 
-  Ini: TIniFile;
+  ini: TIniFile;
   tmpStr: string;
   tmpbool: Boolean;
   AudioSampleSize: LongWord;
@@ -213,22 +213,22 @@ begin
   if not FileExists(IniFileName) then
     IniFileName := extractfilepath(paramstr(0)) + 'setup.ini';
 
-  Ini := TIniFile.Create(IniFileName);
+  ini := TIniFile.Create(IniFileName);
   try
     i := GetFileVersion(Application.ExeName);
-    tmpStr := Ini.Readstring('common', 'id', '');
+    tmpStr := ini.Readstring('common', 'id', '');
     Self.Caption := 'Захват видео с Decklink. V' +
       format('%d.%d', [i div $10000, i mod $10000]) + ' ' + tmpStr;
 
     // capture graph adjusting
-    DSCapturer.CapWidth := Ini.ReadInteger('common', 'capwidth', 720);
-    DSCapturer.CapHeight := Ini.ReadInteger('common', 'capheight', 576);
+    DSCapturer.CapWidth := ini.ReadInteger('common', 'capwidth', 720);
+    DSCapturer.CapHeight := ini.ReadInteger('common', 'capheight', 576);
 
-    DSCapturer.PreviewOn := Ini.ReadBool('common', 'preview', false);
+    DSCapturer.PreviewOn := ini.ReadBool('common', 'preview', false);
 
-    AviWriter.BufferSize := Ini.ReadInteger('common', 'file_buffer', 1048576);
+    AviWriter.BufferSize := ini.ReadInteger('common', 'file_buffer', 1048576);
 
-    ColorSystem := Ini.Readstring('common', 'color', 'YUY2');
+    ColorSystem := ini.Readstring('common', 'color', 'YUY2');
 
     if ColorSystem = 'RGB24' then
       DSCapturer.NeededSubType := MEDIASUBTYPE_RGB24
@@ -243,34 +243,33 @@ begin
         DSCapturer.NeededSubType := MEDIASUBTYPE_YUY2;
     end;
 
-    DSCapturer.VideoIsWS := Ini.ReadBool('common', 'ws', false);
+    DSCapturer.VideoIsWS := ini.ReadBool('common', 'ws', false);
     DSCapturer.FieldCorrectionActive :=
-      Ini.ReadBool('common', 'field_correction', true);
-    DSCapturer.FrameInterval := Ini.ReadInteger('common',
+      ini.ReadBool('common', 'field_correction', true);
+    DSCapturer.FrameInterval := ini.ReadInteger('common',
       'frameinterval', 40000);
 
-    tmpStr := Ini.Readstring('common', 'coder_clsid', '');
+    tmpStr := ini.Readstring('common', 'coder_clsid', '');
     if tmpStr = '' then
-      tmpStr := Ini.Readstring('common', 'ffdshow_clsid', '');
+      tmpStr := ini.Readstring('common', 'ffdshow_clsid', '');
 
     DSCapturer.ffdshow_CLSID_string := tmpStr;
 
-    DSCapturer.DLV_CLSID_string := Ini.Readstring('common',
-      'decklink_video_clsid', '');
-    DSCapturer.DLA_CLSID_string := Ini.Readstring('common',
-      'decklink_audio_clsid', '');
+    DSCapturer.card_no := ini.ReadInteger('common', 'card_no', -1);
+    if (DSCapturer.card_no < 1) or (DSCapturer.card_no > 8) then
+      DSCapturer.card_no := 1;
 
-    DSCapturer.NodataTO := Ini.ReadInteger('timeouts', 'nodata', 5);
-    DSCapturer.FrameTO := Ini.ReadInteger('timeouts', 'frame', 2);
+    DSCapturer.NodataTO := ini.ReadInteger('timeouts', 'nodata', 5);
+    DSCapturer.FrameTO := ini.ReadInteger('timeouts', 'frame', 2);
 
-    VideoSampleSize := Ini.ReadInteger('common', 'frame_buffer_size', 0);
+    VideoSampleSize := ini.ReadInteger('common', 'frame_buffer_size', 0);
 
-    Buff_Count := Ini.ReadInteger('common', 'buf_size', 10);
+    Buff_Count := ini.ReadInteger('common', 'buf_size', 10);
 
     DSCapturer.AudioIsMultichannel := false;
     for i := 0 to 7 do
     begin
-      if Ini.ReadBool('wav', format('ch%2.2d%2.2d', [i * 2 + 1, i * 2 + 2]),
+      if ini.ReadBool('wav', format('ch%2.2d%2.2d', [i * 2 + 1, i * 2 + 2]),
         false) then
       begin
         DSCapturer.AudioIsMultichannel := true;
@@ -289,7 +288,7 @@ begin
 
     DSCapturer.VideoPanel := Panel1;
 
-    FilePath := IncludeTrailingPathDelimiter(Ini.Readstring('filename',
+    FilePath := IncludeTrailingPathDelimiter(ini.Readstring('filename',
       'path', ''));
     if not DirectoryExists(FilePath) then
     begin
@@ -297,22 +296,22 @@ begin
       Application.Terminate;
     end;
 
-    EditPrefix.Text := Ini.Readstring('filename', 'prefix', 'filedv');
-    FileTimeSource := Ini.ReadInteger('filename', 'source', 0);
-    FileUseDate := Ini.ReadBool('filename', 'use_date', true);
+    EditPrefix.Text := ini.Readstring('filename', 'prefix', 'filedv');
+    FileTimeSource := ini.ReadInteger('filename', 'source', 0);
+    FileUseDate := ini.ReadBool('filename', 'use_date', true);
 
     // common parameters
-    Period := Ini.ReadInteger('common', 'period', 7500);
+    Period := ini.ReadInteger('common', 'period', 7500);
     ProgressBarFile.Max := Period;
 
-    Preload := Ini.ReadInteger('common', 'preload', 5);
+    Preload := ini.ReadInteger('common', 'preload', 5);
 
-    RecordTO := Ini.ReadInteger('timeouts', 'record', 40);
+    RecordTO := ini.ReadInteger('timeouts', 'record', 40);
 
     for i := 0 to 7 do
     begin
       tmpStr := format('%2.2d%2.2d', [i * 2 + 1, i * 2 + 2]);
-      tmpbool := Ini.ReadBool('wav', 'ch' + tmpStr, false);
+      tmpbool := ini.ReadBool('wav', 'ch' + tmpStr, false);
       AviWriter.SetWavData(i, tmpbool);
       if tmpbool then
         case i of
@@ -339,22 +338,22 @@ begin
     ProgressBarAudioBuf.Max := DSCapturer.BuffCount;
 
     //
-    if Ini.ReadBool('common', 'hide_close', false) then
+    if ini.ReadBool('common', 'hide_close', false) then
     begin
       FormDecklink.BorderIcons := [];
     end;
 
-    if Ini.ReadBool('common', 'compact_mode', false) then
+    if ini.ReadBool('common', 'compact_mode', false) then
     begin
       Self.height := Self.height - MemoMain.height - 8;
       MemoMain.Visible := false;
       MemoMain.Enabled := false;
     end;
 
-    ControlPanelVisible := Ini.ReadBool('common', 'control', false);
+    ControlPanelVisible := ini.ReadBool('common', 'control', false);
     if ControlPanelVisible then
     begin
-      if Ini.ReadBool('common', 'autostart', true) then
+      if ini.ReadBool('common', 'autostart', true) then
         ButtonStartStop.Tag := 1
       else
         ButtonStartStop.Tag := 0;
@@ -377,13 +376,13 @@ begin
     else
       ButtonStartStop.Caption := 'RECORD';
 
-    Self.Left := Ini.ReadInteger('common', 'left', 300);
-    Self.Top := Ini.ReadInteger('common', 'top', 100);
+    Self.Left := ini.ReadInteger('common', 'left', 300);
+    Self.Top := ini.ReadInteger('common', 'top', 100);
 
     i := 1;
-    while Ini.ValueExists('copier', 'path' + inttostr(i)) do
+    while ini.ValueExists('copier', 'path' + inttostr(i)) do
     begin
-      tmpStr := IncludeTrailingPathDelimiter(Ini.Readstring('copier',
+      tmpStr := IncludeTrailingPathDelimiter(ini.Readstring('copier',
         'path' + inttostr(i), ''));
       if not DirectoryExists(tmpStr) then
       begin
@@ -394,7 +393,7 @@ begin
     end;
     WillUseCopier := i > 1;
 
-    DeleteSource := Ini.ReadBool('copier', 'delete_source', false);
+    DeleteSource := ini.ReadBool('copier', 'delete_source', false);
     CopierThreadActive := false;
 
     EmailerThreadActive := false;
@@ -403,7 +402,7 @@ begin
     EmailerLastSend := 0;
 
   finally
-    Ini.Free;
+    ini.Free;
   end;
 
   FilesToCopy := TStringList.Create;
@@ -434,7 +433,7 @@ end;
 
 procedure TFormDecklink.FormDestroy(Sender: TObject);
 var
-  Ini: TIniFile;
+  ini: TIniFile;
   tmpStr: string;
 
 begin
@@ -446,15 +445,15 @@ begin
       Application.ProcessMessages;
   end;
 
-  Ini := TIniFile.Create(IniFileName);
+  ini := TIniFile.Create(IniFileName);
   try
-    Ini.WriteInteger('common', 'left', FormDecklink.Left);
-    Ini.WriteInteger('common', 'top', FormDecklink.Top);
-    Ini.WriteInteger('common', 'frame_buffer_size',
+    ini.WriteInteger('common', 'left', FormDecklink.Left);
+    ini.WriteInteger('common', 'top', FormDecklink.Top);
+    ini.WriteInteger('common', 'frame_buffer_size',
       DSCapturer.GetLargestBufferSize);
-    Ini.Writestring('filename', 'prefix', EditPrefix.Text);
+    ini.Writestring('filename', 'prefix', EditPrefix.Text);
   finally
-    Ini.Free;
+    ini.Free;
   end;
 
   tmpStr := extractfilepath(paramstr(0)) + 'fileslist.txt';
@@ -869,7 +868,7 @@ begin
   tmp := tmp mod 1500;
   iSeconds := tmp div 25;
   iFrames := tmp mod 25;
-  Result := System.AnsiStrings.format('%.2u', [iHours]) + ':' +
+  result := System.AnsiStrings.format('%.2u', [iHours]) + ':' +
     System.AnsiStrings.format('%.2u', [iMinutes]) + ':' +
     System.AnsiStrings.format('%.2u', [iSeconds]) + ':' +
     System.AnsiStrings.format('%.2u', [iFrames]);

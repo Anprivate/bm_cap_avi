@@ -9,7 +9,7 @@ uses
   Winapi.DirectShow9,
   Vcl.Menus, Vcl.Graphics, Vcl.Controls, Vcl.Forms, Vcl.Dialogs, Vcl.StdCtrls,
   Vcl.ExtCtrls, Vcl.ComCtrls, System.Win.ComObj,
-  Data.DSUtil;
+  Data.DSUtil, Decklink;
 
 type
   TOneVideoFrame = record
@@ -105,14 +105,14 @@ type
     GraphID: integer;
 
     // video capture filter related
-    DLV_CLSID: TGUID;
     DLV_CLSID_use: boolean;
+    DLV_CLSID: TGUID;
     pVCap: IBaseFilter;
     DLVoutpin: IPin;
 
     // audio capture filter related
-    DLA_CLSID: TGUID;
     DLA_CLSID_use: boolean;
+    DLA_CLSID: TGUID;
     pACap: IBaseFilter;
     DLAoutpin: IPin;
 
@@ -181,8 +181,7 @@ type
   public
     // must be filled!!!
     ffdshow_CLSID_string: string;
-    DLV_CLSID_string: string;
-    DLA_CLSID_string: string;
+    card_no: integer;
     FieldCorrectionActive: boolean;
     CapWidth, CapHeight: integer;
     NeededSubType: TGUID;
@@ -279,6 +278,106 @@ begin
     exit;
   Result := ROT.Revoke(ID);
   ROT := nil;
+end;
+
+function BMRenderGuidsFromNum(card_no: integer; var VGUID: TGUID;
+  var AGUID: TGUID): boolean;
+begin
+  Result := true;
+  case card_no of
+    1:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter;
+        AGUID := CLSID_DecklinkAudioRenderFilter;
+      end;
+    2:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter2;
+        AGUID := CLSID_DecklinkAudioRenderFilter2;
+      end;
+    3:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter3;
+        AGUID := CLSID_DecklinkAudioRenderFilter3;
+      end;
+    4:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter4;
+        AGUID := CLSID_DecklinkAudioRenderFilter4;
+      end;
+    5:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter5;
+        AGUID := CLSID_DecklinkAudioRenderFilter5;
+      end;
+    6:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter6;
+        AGUID := CLSID_DecklinkAudioRenderFilter6;
+      end;
+    7:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter7;
+        AGUID := CLSID_DecklinkAudioRenderFilter7;
+      end;
+    8:
+      begin
+        VGUID := CLSID_DecklinkVideoRenderFilter8;
+        AGUID := CLSID_DecklinkAudioRenderFilter8;
+      end;
+  else
+    Result := false;
+  end;
+end;
+
+function BMCaptureGuidsFromNum(card_no: integer; var VGUID: TGUID;
+  var AGUID: TGUID): boolean;
+begin
+  Result := true;
+  case card_no of
+    1:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter;
+        AGUID := CLSID_DecklinkAudioCaptureFilter;
+      end;
+    2:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter2;
+        AGUID := CLSID_DecklinkAudioCaptureFilter2;
+      end;
+    3:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter3;
+        AGUID := CLSID_DecklinkAudioCaptureFilter3;
+      end;
+    4:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter4;
+        AGUID := CLSID_DecklinkAudioCaptureFilter4;
+      end;
+    5:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter5;
+        AGUID := CLSID_DecklinkAudioCaptureFilter5;
+      end;
+    6:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter6;
+        AGUID := CLSID_DecklinkAudioCaptureFilter6;
+      end;
+    7:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter7;
+        AGUID := CLSID_DecklinkAudioCaptureFilter7;
+      end;
+    8:
+      begin
+        VGUID := CLSID_DecklinkVideoCaptureFilter8;
+        AGUID := CLSID_DecklinkAudioCaptureFilter8;
+      end;
+  else
+    Result := false;
+  end;
 end;
 
 { TFieldCorrectionCB }
@@ -1653,24 +1752,15 @@ begin
   except
   end;
 
-  DLV_CLSID_use := false;
-  try
-    if Pos('}', DLV_CLSID_string) > 0 then
-      DLV_CLSID := StringToGuid(DLV_CLSID_string)
-    else
-      DLV_CLSID := StringToGuid('{' + DLV_CLSID_string + '}');
+  if BMCaptureGuidsFromNum(card_no, DLV_CLSID, DLA_CLSID) then
+  begin
     DLV_CLSID_use := true;
-  except
-  end;
-
-  DLA_CLSID_use := false;
-  try
-    if Pos('}', DLA_CLSID_string) > 0 then
-      DLA_CLSID := StringToGuid(DLA_CLSID_string)
-    else
-      DLA_CLSID := StringToGuid('{' + DLA_CLSID_string + '}');
     DLA_CLSID_use := true;
-  except
+  end
+  else
+  begin
+    DLV_CLSID_use := false;
+    DLV_CLSID_use := false;
   end;
 
   SGFCused := FieldCorrectionActive and (CapWidth = 720) and (CapHeight = 576)
