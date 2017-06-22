@@ -48,9 +48,9 @@ type
 
   TAVindex = record
     Vposition: Int64;
-    Vsize: LongWord;
+    Vsize: Uint32;
     Aposition: Int64;
-    Asize: LongWord;
+    Asize: Uint32;
   end;
 
   TSuspendedRecord = record
@@ -286,11 +286,11 @@ end;
 
 procedure TAviWriter.FinishChunk0;
 var
-  ListMoviSize: LongWord;
-  idx1size: LongWord;
-  tmp_lw: LongWord;
+  ListMoviSize: Uint32;
+  idx1size: Uint32;
+  tmp_lw: Uint32;
   tmp_flags: T4bytes;
-  i: LongWord;
+  i: Uint32;
   frame_id: T4bytes;
 begin
   // write main chunk size to chunksizeposition
@@ -376,7 +376,7 @@ end;
 
 procedure TAviWriter.StartNextChunk;
 var
-  tmp_lw: LongWord;
+  tmp_lw: Uint32;
   frame_id: T4bytes;
 begin
   if current_chunk_number = 0 then
@@ -429,6 +429,11 @@ procedure TAviWriter.CloseAviFile;
 const
   indexes_per_chunk = 8192;
 type
+  TtmpIDX = record
+    offset: Uint32;
+    size: Uint32;
+  end;
+
   Tsuperindex = record
     offset: Int64;
     chunkSize: LongWord;
@@ -440,13 +445,14 @@ var
   tmp_b: byte;
   hdrl_s_pos, strl_v_s_pos, strl_a_s_pos: LongWord;
   long_offset: Int64;
-  i, i1, si_indx: LongWord;
+  i, si_indx: LongWord;
   si_Video, si_Audio: array of Tsuperindex;
   samples_per_frame: LongWord;
   frame_id: T4bytes;
   tmpstr: string;
-
-  tmp_buffer: pByte;
+  tmpIndex: array [0 .. indexes_per_chunk - 1] of TtmpIDX;
+  CurrIDX, InTmpIDX: integer;
+  tmpInt64: Int64;
 begin
   // file is not open?
   if IO_ops.OutFileHandle = INVALID_HANDLE_VALUE then
@@ -481,112 +487,145 @@ begin
     Int64(strh_video.dwScale) div Int64(strh_video.dwRate);
 
   // write ix00 index (ODML standard index for video)
-  i := 0;
+  CurrIDX := 0;
   si_indx := 0;
-  while i < Length(AVIndex) do
-  begin
-    if (i mod indexes_per_chunk) = 0 then
-    begin
-      // header of chunk writing
-      if (Length(AVIndex) - i) >= indexes_per_chunk then
-        i1 := indexes_per_chunk
-      else
-        i1 := Length(AVIndex) - i;
 
+  repeat
+    InTmpIDX := 0;
+
+    long_offset := AVIndex[CurrIDX].Vposition;
+
+    repeat
+      tmpInt64 := AVIndex[CurrIDX].Vposition - long_offset;
+      if tmpInt64 > High(Uint32) then
+        break;
+
+      tmpIndex[InTmpIDX].offset := tmpInt64;
+      tmpIndex[InTmpIDX].size := AVIndex[CurrIDX].Vsize;
+
+      inc(CurrIDX);
+      inc(InTmpIDX);
+    until (InTmpIDX >= indexes_per_chunk) or (CurrIDX >= Length(AVIndex));
+
+    if InTmpIDX > 0 then
+    begin
       // for superindex
       SetLength(si_Video, si_indx + 1);
       si_Video[si_indx].offset := IO_ops.GetCurrentPosition;
-      si_Video[si_indx].chunkSize := (i1 * 8) + 32;
-      si_Video[si_indx].duration := i1;
+      si_Video[si_indx].chunkSize := (InTmpIDX * 8) + 32;
+      si_Video[si_indx].duration := InTmpIDX;
       inc(si_indx);
 
       // main index
       frame_id := str_to_4b('ix00');
       IO_ops.WriteData(frame_id, 4);
 
-      tmp_lw := (i1 * 8) + 24;
+      tmp_lw := (InTmpIDX * 8) + 24;
       IO_ops.WriteData(tmp_lw, 4); // chunk size
 
       tmp_w := 2;
       IO_ops.WriteData(tmp_w, 2); // longs per entry
 
+      // index sub type
       tmp_b := AVI_INDEX_SUB_DEFAULT;
       IO_ops.WriteData(tmp_b, 1);
 
-      // index sub type
+      // index type
       tmp_b := AVI_INDEX_OF_CHUNKS;
       IO_ops.WriteData(tmp_b, 1);
 
-      // index type
-      tmp_lw := i1;
-      IO_ops.WriteData(tmp_lw, 4); // entries in use
+      // entries in use
+      tmp_lw := InTmpIDX;
+      IO_ops.WriteData(tmp_lw, 4);
 
+      // chunk ID
       frame_id := str_to_4b('00dc');
       IO_ops.WriteData(frame_id, 4);
 
-      // chunk ID
-      long_offset := AVIndex[i].Vposition;
-      IO_ops.WriteData(long_offset, 8); // offset
+      // offset
+      IO_ops.WriteData(long_offset, 8);
 
       tmp_lw := 0;
       IO_ops.WriteData(tmp_lw, 4); // reserved
-    end;
 
-    tmp_lw := AVIndex[i].Vposition - long_offset;
-    IO_ops.WriteData(tmp_lw, 4); // offset
-    IO_ops.WriteData(AVIndex[i].Vsize, 4); // size
-    inc(i);
-  end;
+      for i := 0 to InTmpIDX - 1 do
+      begin
+        IO_ops.WriteData(tmpIndex[i].offset, 4); // offset
+        IO_ops.WriteData(tmpIndex[i].size, 4); // size
+      end;
+    end;
+  until CurrIDX >= Length(AVIndex);
 
   // write ix01 index (ODML standard index for audio)
-  i := 0;
+  CurrIDX := 0;
   si_indx := 0;
-  while i < Length(AVIndex) do
-  begin
-    if (i mod indexes_per_chunk) = 0 then
-    begin // header of chunk writing
-      if (Length(AVIndex) - i) >= indexes_per_chunk then
-      begin
-        i1 := indexes_per_chunk;
-      end
-      else
-      begin
-        i1 := Length(AVIndex) - i;
-      end;
+
+  repeat
+    InTmpIDX := 0;
+
+    long_offset := AVIndex[CurrIDX].Aposition;
+
+    repeat
+      tmpInt64 := AVIndex[CurrIDX].Aposition - long_offset;
+      if tmpInt64 > High(Uint32) then
+        break;
+
+      tmpIndex[InTmpIDX].offset := tmpInt64;
+      tmpIndex[InTmpIDX].size := strh_audio.dwSuggestedBufferSize;
+      // AVIndex[CurrIDX].Asize;
+
+      inc(CurrIDX);
+      inc(InTmpIDX);
+    until (InTmpIDX >= indexes_per_chunk) or (CurrIDX >= Length(AVIndex));
+
+    if InTmpIDX > 0 then
+    begin
       // for superindex
       SetLength(si_Audio, si_indx + 1);
       si_Audio[si_indx].offset := IO_ops.GetCurrentPosition;
-      si_Audio[si_indx].chunkSize := (i1 * 8) + 32;
-      si_Audio[si_indx].duration := i1 * samples_per_frame;
+      si_Audio[si_indx].chunkSize := (InTmpIDX * 8) + 32;
+      si_Audio[si_indx].duration := InTmpIDX * samples_per_frame;
       inc(si_indx);
+
       // main index
       frame_id := str_to_4b('ix01');
       IO_ops.WriteData(frame_id, 4);
-      tmp_lw := (i1 * 8) + 24;
+
+      tmp_lw := (InTmpIDX * 8) + 24;
       IO_ops.WriteData(tmp_lw, 4); // chunk size
+
       tmp_w := 2;
       IO_ops.WriteData(tmp_w, 2); // longs per entry
+
+      // index sub type
       tmp_b := AVI_INDEX_SUB_DEFAULT;
       IO_ops.WriteData(tmp_b, 1);
-      // index sub type
+
+      // index type
       tmp_b := AVI_INDEX_OF_CHUNKS;
       IO_ops.WriteData(tmp_b, 1);
-      // index type
-      tmp_lw := i1;
-      IO_ops.WriteData(tmp_lw, 4); // entries in use
+
+      // entries in use
+      tmp_lw := InTmpIDX;
+      IO_ops.WriteData(tmp_lw, 4);
+
+      // chunk ID
       frame_id := str_to_4b('01wb');
       IO_ops.WriteData(frame_id, 4);
-      // chunk ID
-      long_offset := AVIndex[i].Aposition;
-      IO_ops.WriteData(long_offset, 8); // offset
+
+      // offset
+      IO_ops.WriteData(long_offset, 8);
+
       tmp_lw := 0;
       IO_ops.WriteData(tmp_lw, 4); // reserved
+
+      for i := 0 to InTmpIDX - 1 do
+      begin
+        IO_ops.WriteData(tmpIndex[i].offset, 4); // offset
+        IO_ops.WriteData(tmpIndex[i].size, 4); // size
+      end;
     end;
-    tmp_lw := AVIndex[i].Aposition - long_offset;
-    IO_ops.WriteData(tmp_lw, 4); // offset
-    IO_ops.WriteData(strh_audio.dwSuggestedBufferSize, 4); // size
-    inc(i);
-  end;
+  until CurrIDX >= Length(AVIndex);
 
   if current_chunk_number = 0 then
     FinishChunk0()

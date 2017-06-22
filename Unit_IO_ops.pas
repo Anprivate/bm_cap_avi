@@ -26,7 +26,7 @@ type
     constructor Create(AOwner: TComponent); override;
     destructor Destroy; override;
     //
-    function WriteData(const Buffer; Count: LongWord): Integer;
+    function WriteData(const Buffer; Count: int64): int64;
     function SetPosition(position: int64): int64;
     function GetCurrentPosition: int64;
 
@@ -101,11 +101,11 @@ begin
   Result := FileSeek(OutFileHandle, position, FILE_BEGIN);
 end;
 
-function TIO_ops.WriteData(const Buffer; Count: LongWord): Integer;
+function TIO_ops.WriteData(const Buffer; Count: int64): int64;
 var
   tmp_ptr: PByte;
-  tmp_count: LongWord;
-  tmp_size: LongWord;
+  tmp_count: int64;
+  tmp_size: int64;
 begin
   if LBufferedMode then
   begin
